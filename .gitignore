@@ -9,6 +9,7 @@ backend/.Python
 backend/db.sqlite3
 backend/*.log
 backend/.env
+frontend/dist
 
 # Node
 frontend/node_modules/
