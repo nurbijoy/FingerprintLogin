@@ -25,7 +25,7 @@ python manage.py runserver
 ```bash
 cd frontend
 npm install
-npm start
+npm run dev
 ```
 
 Access at: http://localhost:3000
