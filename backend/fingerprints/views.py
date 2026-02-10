@@ -1,0 +1,107 @@
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import Fingerprint
+from users.models import User
+from .serializers import (
+    FingerprintSerializer,
+    FingerprintCaptureSerializer,
+    FingerprintVerifySerializer
+)
+from .services import FingerprintService
+import base64
+
+
+class FingerprintViewSet(viewsets.ModelViewSet):
+    queryset = Fingerprint.objects.all()
+    serializer_class = FingerprintSerializer
+
+    @action(detail=False, methods=['post'])
+    def capture(self, request):
+        """Capture and store fingerprint template"""
+        serializer = FingerprintCaptureSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user_id = serializer.validated_data['user_id']
+        template_data = serializer.validated_data['template_data']
+        quality_score = serializer.validated_data['quality_score']
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Decode base64 template data
+        template_bytes = base64.b64decode(template_data)
+
+        # Create fingerprint record
+        fingerprint = Fingerprint.objects.create(
+            user=user,
+            template_data=template_bytes,
+            quality_score=quality_score
+        )
+
+        return Response(
+            {
+                'id': fingerprint.id,
+                'message': 'Fingerprint captured successfully',
+                'user': {
+                    'id': user.id,
+                    'emp_id': user.emp_id,
+                    'name': user.name
+                }
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=False, methods=['post'])
+    def verify(self, request):
+        """Verify fingerprint against stored templates"""
+        serializer = FingerprintVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        template_data = serializer.validated_data['template_data']
+        template_bytes = base64.b64decode(template_data)
+
+        # Get all stored fingerprints
+        stored_fingerprints = Fingerprint.objects.all()
+
+        # Use fingerprint service to match
+        match_result = FingerprintService.verify_fingerprint(
+            template_bytes,
+            stored_fingerprints
+        )
+
+        if match_result['matched']:
+            user = match_result['user']
+            return Response({
+                'matched': True,
+                'user': {
+                    'id': user.id,
+                    'emp_id': user.emp_id,
+                    'name': user.name
+                },
+                'confidence': match_result['confidence']
+            })
+        else:
+            return Response({
+                'matched': False,
+                'message': 'No matching fingerprint found'
+            })
+
+    @action(detail=False, methods=['get'], url_path='user/(?P<user_id>[^/.]+)')
+    def user_fingerprints(self, request, user_id=None):
+        """Get all fingerprints for a specific user"""
+        try:
+            user = User.objects.get(id=user_id)
+            fingerprints = Fingerprint.objects.filter(user=user)
+            serializer = self.get_serializer(fingerprints, many=True)
+            return Response(serializer.data)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
