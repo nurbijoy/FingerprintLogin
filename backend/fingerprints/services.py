@@ -1,14 +1,15 @@
 """
-Fingerprint matching service
-This is a placeholder for SecuGen SDK integration
+Fingerprint matching service using SecuGen Bridge
 """
+import requests
+import base64
 
 
 class FingerprintService:
     """
-    Service for fingerprint template matching
-    TODO: Integrate with SecuGen SDK for actual matching
+    Service for fingerprint template matching via SecuGen Bridge
     """
+    BRIDGE_URL = 'http://localhost:8080/api/device'
 
     @staticmethod
     def verify_fingerprint(template_bytes, stored_fingerprints):
@@ -26,17 +27,36 @@ class FingerprintService:
                 'confidence': int (0-100)
             }
         """
-        # TODO: Replace with actual SecuGen SDK matching logic
-        # For now, this is a simple byte comparison (NOT SECURE FOR PRODUCTION)
+        # Convert captured template to base64
+        template1_base64 = base64.b64encode(template_bytes).decode('utf-8')
         
+        # Try to match against each stored fingerprint
         for fingerprint in stored_fingerprints:
-            # Simple comparison - replace with SecuGen SDK matching
-            if FingerprintService._compare_templates(template_bytes, fingerprint.template_data):
-                return {
-                    'matched': True,
-                    'user': fingerprint.user,
-                    'confidence': 95  # Placeholder confidence score
-                }
+            try:
+                # Convert stored template to base64
+                template2_base64 = base64.b64encode(fingerprint.template_data).decode('utf-8')
+                
+                # Call SecuGen Bridge to match templates
+                response = requests.post(
+                    f'{FingerprintService.BRIDGE_URL}/match',
+                    json={
+                        'template1': template1_base64,
+                        'template2': template2_base64
+                    },
+                    timeout=5
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('success') and result.get('matched'):
+                        return {
+                            'matched': True,
+                            'user': fingerprint.user,
+                            'confidence': result.get('score', 95)
+                        }
+            except Exception as e:
+                print(f"Error matching fingerprint {fingerprint.id}: {str(e)}")
+                continue
         
         return {
             'matched': False,
@@ -45,28 +65,17 @@ class FingerprintService:
         }
 
     @staticmethod
-    def _compare_templates(template1, template2):
-        """
-        Compare two fingerprint templates
-        TODO: Replace with SecuGen SDK matching algorithm
-        """
-        # Simple byte comparison (NOT SECURE - FOR DEVELOPMENT ONLY)
-        return template1 == template2
-
-    @staticmethod
     def extract_template(raw_image_data):
         """
         Extract fingerprint template from raw image
-        TODO: Implement with SecuGen SDK
+        This is handled by the SecuGen Bridge during capture
         """
-        # Placeholder - return the raw data as template
         return raw_image_data
 
     @staticmethod
     def calculate_quality(template_data):
         """
         Calculate fingerprint quality score
-        TODO: Implement with SecuGen SDK
+        This is handled by the SecuGen Bridge during capture
         """
-        # Placeholder quality score
         return 80

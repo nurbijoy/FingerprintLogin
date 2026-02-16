@@ -19,23 +19,42 @@ class FingerprintViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def capture(self, request):
         """Capture and store fingerprint template"""
+        print(f"Received capture request with data: {request.data}")
         serializer = FingerprintCaptureSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        
+        if not serializer.is_valid():
+            print(f"Validation errors: {serializer.errors}")
+            return Response(
+                {'error': 'Invalid data', 'details': serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         user_id = serializer.validated_data['user_id']
         template_data = serializer.validated_data['template_data']
-        quality_score = serializer.validated_data['quality_score']
+        quality_score = serializer.validated_data.get('quality_score', 0)
+        
+        print(f"Validated data - user_id: {user_id}, template_length: {len(template_data)}, quality: {quality_score}")
 
         try:
             user = User.objects.get(id=user_id)
+            print(f"Found user: {user.emp_id} - {user.name}")
         except User.DoesNotExist:
+            print(f"User not found with id: {user_id}")
             return Response(
                 {'error': 'User not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Decode base64 template data
-        template_bytes = base64.b64decode(template_data)
+        try:
+            # Decode base64 template data
+            template_bytes = base64.b64decode(template_data)
+            print(f"Template data decoded successfully, length: {len(template_bytes)} bytes")
+        except Exception as e:
+            print(f"Base64 decode error: {str(e)}")
+            return Response(
+                {'error': 'Invalid base64 template data', 'details': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Create fingerprint record
         fingerprint = Fingerprint.objects.create(
@@ -43,6 +62,8 @@ class FingerprintViewSet(viewsets.ModelViewSet):
             template_data=template_bytes,
             quality_score=quality_score
         )
+        
+        print(f"Fingerprint created successfully with id: {fingerprint.id}")
 
         return Response(
             {

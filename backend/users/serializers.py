@@ -17,7 +17,8 @@ class UserSerializer(serializers.ModelSerializer):
 class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['emp_id', 'name']
+        fields = ['id', 'emp_id', 'name']
+        read_only_fields = ['id']
 
     def validate_emp_id(self, value):
         if User.objects.filter(emp_id=value).exists():
