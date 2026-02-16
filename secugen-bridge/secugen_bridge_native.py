@@ -12,6 +12,7 @@ import ctypes
 from ctypes import *
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from io import BytesIO
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
@@ -168,6 +169,63 @@ class SecuGenDevice:
         self.image_height = 0
         self.device_id = 0
         self.max_template_size = 1000  # Will be set during initialization
+    
+    def raw_to_bmp(self, raw_data, width, height):
+        """Convert raw grayscale image data to BMP format"""
+        # BMP file header (14 bytes)
+        # BMP info header (40 bytes)
+        # Color palette (256 * 4 bytes for grayscale)
+        # Image data (width * height bytes)
+        
+        # Calculate padding (BMP rows must be multiple of 4 bytes)
+        row_size = width
+        padding = (4 - (row_size % 4)) % 4
+        padded_row_size = row_size + padding
+        
+        # Calculate sizes
+        palette_size = 256 * 4  # 256 colors * 4 bytes (BGRA)
+        image_data_size = padded_row_size * height
+        file_size = 14 + 40 + palette_size + image_data_size
+        
+        # Create BMP file in memory
+        bmp_data = BytesIO()
+        
+        # BMP File Header (14 bytes)
+        bmp_data.write(b'BM')  # Signature
+        bmp_data.write(file_size.to_bytes(4, 'little'))  # File size
+        bmp_data.write(b'\x00\x00')  # Reserved
+        bmp_data.write(b'\x00\x00')  # Reserved
+        bmp_data.write((14 + 40 + palette_size).to_bytes(4, 'little'))  # Offset to image data
+        
+        # BMP Info Header (40 bytes)
+        bmp_data.write((40).to_bytes(4, 'little'))  # Header size
+        bmp_data.write(width.to_bytes(4, 'little'))  # Width
+        bmp_data.write(height.to_bytes(4, 'little'))  # Height
+        bmp_data.write((1).to_bytes(2, 'little'))  # Planes
+        bmp_data.write((8).to_bytes(2, 'little'))  # Bits per pixel
+        bmp_data.write((0).to_bytes(4, 'little'))  # Compression (0 = none)
+        bmp_data.write(image_data_size.to_bytes(4, 'little'))  # Image size
+        bmp_data.write((0).to_bytes(4, 'little'))  # X pixels per meter
+        bmp_data.write((0).to_bytes(4, 'little'))  # Y pixels per meter
+        bmp_data.write((256).to_bytes(4, 'little'))  # Colors used
+        bmp_data.write((0).to_bytes(4, 'little'))  # Important colors
+        
+        # Color Palette (256 grayscale colors)
+        for i in range(256):
+            bmp_data.write(bytes([i, i, i, 0]))  # BGRA
+        
+        # Image Data (bottom-up, left-to-right)
+        # BMP stores images bottom-up, so we need to reverse rows
+        for y in range(height - 1, -1, -1):
+            row_start = y * width
+            row_end = row_start + width
+            row_data = raw_data[row_start:row_end]
+            bmp_data.write(row_data)
+            # Add padding
+            if padding > 0:
+                bmp_data.write(b'\x00' * padding)
+        
+        return bmp_data.getvalue()
         
     def initialize(self):
         """Initialize SecuGen device using SDK sequence from working samples: Create -> Init -> OpenDevice"""
@@ -569,7 +627,8 @@ class SecuGenDevice:
                 
                 template_base64 = base64.b64encode(template_bytes).decode('utf-8')
                 image_bytes = bytes(image_buffer)
-                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                bmp_bytes = self.raw_to_bmp(image_bytes, self.image_width, self.image_height)
+                image_base64 = base64.b64encode(bmp_bytes).decode('utf-8')
                 
                 return {
                     'success': True,
@@ -676,7 +735,8 @@ class SecuGenDevice:
                 
                 # Return the image anyway so user can see what was captured
                 image_bytes = bytes(image_buffer)
-                image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                bmp_bytes = self.raw_to_bmp(image_bytes, self.image_width, self.image_height)
+                image_base64 = base64.b64encode(bmp_bytes).decode('utf-8')
                 
                 return {
                     'success': False,
@@ -685,9 +745,10 @@ class SecuGenDevice:
                     'imageData': image_base64
                 }
             
-            # Convert image to base64
+            # Convert image to BMP format then base64
             image_bytes = bytes(image_buffer)
-            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            bmp_bytes = self.raw_to_bmp(image_bytes, self.image_width, self.image_height)
+            image_base64 = base64.b64encode(bmp_bytes).decode('utf-8')
             
             # Turn LED off after successful capture
             try:

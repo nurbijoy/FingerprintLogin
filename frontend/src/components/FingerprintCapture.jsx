@@ -40,9 +40,12 @@ const FingerprintCapture = ({ onCapture, buttonText = 'Capture Fingerprint' }) =
           // Check if it already has data:image prefix
           const imageDataUrl = result.imageData.startsWith('data:') 
             ? result.imageData 
-            : `data:image/png;base64,${result.imageData}`;
+            : `data:image/bmp;base64,${result.imageData}`;
           setCapturedImage(imageDataUrl);
-          console.log('Image data set:', imageDataUrl.substring(0, 50) + '...');
+          console.log('Image data set:', imageDataUrl.substring(0, 100) + '...');
+          console.log('Full image data length:', result.imageData.length);
+        } else {
+          console.warn('No image data received from capture');
         }
         
         setAlert({ 

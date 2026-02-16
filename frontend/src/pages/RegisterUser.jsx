@@ -36,6 +36,7 @@ const RegisterUser = () => {
   };
 
   const handleFingerprintCapture = (data) => {
+    console.log('Fingerprint captured in RegisterUser:', data);
     setFingerprintData(data);
     setQualityScore(data.quality);
   };
