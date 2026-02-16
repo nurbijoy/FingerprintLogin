@@ -48,11 +48,6 @@ const FingerprintCapture = ({ onCapture, buttonText = 'Capture Fingerprint' }) =
           console.warn('No image data received from capture');
         }
         
-        setAlert({ 
-          type: 'success', 
-          message: 'Fingerprint captured successfully!'
-        });
-        
         onCapture({
           templateData: result.templateData,
           quality: result.quality,
