@@ -13,7 +13,6 @@ const VerifyFingerprint = () => {
 
   const handleFingerprintCapture = async (data) => {
     setIsVerifying(true);
-    setAlert(null);
     setVerificationResult(null);
 
     try {
@@ -27,16 +26,8 @@ const VerifyFingerprint = () => {
           user: response.data.user,
           confidence: response.data.confidence
         });
-        setAlert({ 
-          type: 'success', 
-          message: `Welcome back, ${response.data.user.name}!` 
-        });
       } else {
         setVerificationResult({ matched: false });
-        setAlert({ 
-          type: 'error', 
-          message: 'Fingerprint not recognized. Please try again.' 
-        });
       }
     } catch (error) {
       setAlert({ 
@@ -50,7 +41,6 @@ const VerifyFingerprint = () => {
 
   const handleReset = () => {
     setVerificationResult(null);
-    setAlert(null);
   };
 
   return (

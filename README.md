@@ -212,3 +212,8 @@ This project is for educational and internal use.
 ## Support
 
 For issues and questions, please refer to the documentation in the `notes/` directory.
+
+git upload
+```cmd
+git add . & git commit -m "Updated" & git push ;
+```
