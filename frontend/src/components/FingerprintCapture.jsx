@@ -31,10 +31,17 @@ const FingerprintCapture = ({ onCapture, buttonText = 'Capture Fingerprint' }) =
       const result = await secuGenService.captureFingerprint();
       
       if (result.success) {
-        setAlert({ type: 'success', message: 'Fingerprint captured successfully!' });
+        const qualityText = result.quality >= 80 ? 'Excellent' : 
+                           result.quality >= 60 ? 'Good' : 
+                           result.quality >= 40 ? 'Fair' : 'Marginal';
+        setAlert({ 
+          type: 'success', 
+          message: `Fingerprint captured successfully! Quality: ${result.quality}/100 (${qualityText})` 
+        });
         onCapture({
           templateData: result.templateData,
-          quality: result.quality
+          quality: result.quality,
+          imageData: result.imageData
         });
       } else {
         setAlert({ type: 'error', message: result.message || 'Failed to capture fingerprint' });
@@ -95,9 +102,15 @@ const FingerprintCapture = ({ onCapture, buttonText = 'Capture Fingerprint' }) =
           </Button>
         )}
 
-        <p className="mt-4 text-sm text-gray-500">
-          Place your finger firmly on the scanner when prompted
-        </p>
+        <div className="mt-4 text-sm text-gray-600">
+          <p className="font-medium mb-2">Tips for best capture:</p>
+          <ul className="text-left space-y-1 text-xs">
+            <li>• Ensure finger is clean and dry</li>
+            <li>• Center finger on scanner surface</li>
+            <li>• Press firmly and keep still</li>
+            <li>• Wait for LED to light up</li>
+          </ul>
+        </div>
       </div>
     </div>
   );

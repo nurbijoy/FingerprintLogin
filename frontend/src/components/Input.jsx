@@ -8,7 +8,8 @@ const Input = ({
   placeholder = '',
   required = false,
   error = '',
-  className = ''
+  className = '',
+  name
 }) => {
   return (
     <div className={`mb-4 ${className}`}>
@@ -19,6 +20,7 @@ const Input = ({
       )}
       <input
         type={type}
+        name={name}
         value={value}
         onChange={onChange}
         placeholder={placeholder}

@@ -46,18 +46,36 @@ const RegisterUser = () => {
 
     setIsSubmitting(true);
     setAlert(null);
+    let createdUserId = null;
 
     try {
       // Create user
+      console.log('Creating user with data:', formData);
       const userResponse = await userAPI.create(formData);
-      const userId = userResponse.data.id;
+      console.log('User created:', userResponse.data);
+      createdUserId = userResponse.data.id;
 
-      // Save fingerprint
-      await fingerprintAPI.capture({
-        user_id: userId,
+      // Save fingerprint with user_id
+      const fingerprintPayload = {
+        user_id: createdUserId,
         template_data: fingerprintData.templateData,
-        quality_score: fingerprintData.quality
+        quality_score: fingerprintData.quality || 0
+      };
+      
+      // Verify payload before sending
+      console.log('Fingerprint payload to send:', {
+        user_id: fingerprintPayload.user_id,
+        template_data_length: fingerprintPayload.template_data?.length,
+        quality_score: fingerprintPayload.quality_score,
+        has_user_id: !!fingerprintPayload.user_id
       });
+      
+      if (!fingerprintPayload.user_id) {
+        throw new Error('user_id is missing from payload');
+      }
+      
+      const fingerprintResponse = await fingerprintAPI.capture(fingerprintPayload);
+      console.log('Fingerprint saved:', fingerprintResponse.data);
 
       setAlert({ type: 'success', message: 'User registered successfully!' });
       
@@ -65,8 +83,24 @@ const RegisterUser = () => {
         navigate('/users');
       }, 2000);
     } catch (error) {
-      const errorMessage = error.response?.data?.emp_id?.[0] || 
+      console.error('Registration error:', error);
+      console.error('Error response:', error.response);
+      
+      // If user was created but fingerprint failed, delete the user
+      if (createdUserId && error.response?.config?.url?.includes('fingerprint')) {
+        console.log('Fingerprint capture failed, rolling back user creation...');
+        try {
+          await userAPI.delete(createdUserId);
+          console.log('User rollback successful');
+        } catch (rollbackError) {
+          console.error('Failed to rollback user creation:', rollbackError);
+        }
+      }
+      
+      const errorMessage = error.response?.data?.details?.user_id?.[0] ||
+                          error.response?.data?.error ||
                           error.response?.data?.message || 
+                          error.message ||
                           'Failed to register user';
       setAlert({ type: 'error', message: errorMessage });
     } finally {

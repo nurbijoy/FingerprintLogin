@@ -1,92 +1,188 @@
 /**
- * SecuGen WebAPI Service
- * TODO: Integrate with actual SecuGen WebAPI
- * Place SecuGen WebAPI files in public/secugen/ folder
+ * SecuGen Bridge Service
+ * Connects to our custom Python bridge service that interfaces with SecuGen SDK
+ * No need for SecuGen WebAPI - we built our own!
  */
 
 class SecuGenService {
   constructor() {
-    this.device = null;
-    this.isInitialized = false;
+    // Our custom bridge service
+    this.baseURL = 'http://localhost:8080/api/device';
+    this.timeout = 10000; // 10 seconds
   }
 
   /**
-   * Initialize SecuGen device
-   * TODO: Replace with actual SecuGen WebAPI initialization
+   * Initialize and check if SecuGen device is available
    */
   async initialize() {
     try {
-      // TODO: Initialize SecuGen WebAPI
-      // Example: this.device = new SGFPMDeviceName();
+      const response = await fetch(`${this.baseURL}/info`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+      });
+
+      if (!response.ok) {
+        throw new Error('Bridge service not responding');
+      }
+
+      const data = await response.json();
+      console.log('SecuGen device info:', data);
       
-      console.log('SecuGen device initialization - TODO: Implement with SDK');
-      this.isInitialized = true;
-      return { success: true, message: 'Device initialized (mock)' };
+      if (data.success) {
+        return { 
+          success: true, 
+          message: 'Device initialized successfully',
+          deviceInfo: data
+        };
+      } else {
+        throw new Error(data.message || 'Device initialization failed');
+      }
     } catch (error) {
       console.error('Device initialization failed:', error);
-      return { success: false, message: error.message };
+      return { 
+        success: false, 
+        message: 'SecuGen Bridge Service not found. Please start: python secugen-bridge/secugen_bridge_native.py',
+        error: error.message
+      };
     }
   }
 
   /**
    * Check if device is connected
-   * TODO: Replace with actual device detection
    */
   async isDeviceConnected() {
-    // TODO: Implement actual device detection
-    return this.isInitialized;
+    const result = await this.initialize();
+    return result.success;
   }
 
   /**
    * Capture fingerprint from device
-   * TODO: Replace with actual SecuGen capture
+   * Returns base64 encoded template data
    */
   async captureFingerprint() {
     try {
-      if (!this.isInitialized) {
-        throw new Error('Device not initialized');
+      const response = await fetch(`${this.baseURL}/capture`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          quality_threshold: 50,
+          timeout: this.timeout
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to communicate with bridge service');
       }
 
-      // TODO: Implement actual fingerprint capture
-      // Example:
-      // const result = await this.device.Capture();
-      // return {
-      //   success: true,
-      //   templateData: result.template,
-      //   quality: result.quality
-      // };
+      const data = await response.json();
+      console.log('Capture response:', data);
 
-      // Mock implementation for development
-      console.log('Capturing fingerprint - TODO: Implement with SDK');
-      
-      // Generate mock template data (base64 encoded)
-      const mockTemplate = btoa('MOCK_FINGERPRINT_TEMPLATE_' + Date.now());
-      
-      return {
-        success: true,
-        templateData: mockTemplate,
-        quality: 85,
-        message: 'Fingerprint captured (mock data)'
-      };
+      if (data.success) {
+        return {
+          success: true,
+          templateData: data.templateData,
+          imageData: data.imageData,
+          quality: data.quality || 0,
+          message: data.message || 'Fingerprint captured successfully'
+        };
+      } else {
+        throw new Error(data.message || 'Fingerprint capture failed');
+      }
     } catch (error) {
       console.error('Capture failed:', error);
       return {
         success: false,
-        message: error.message
+        message: error.message || 'Failed to capture fingerprint'
       };
     }
   }
 
   /**
    * Get device information
-   * TODO: Replace with actual device info
    */
   async getDeviceInfo() {
-    return {
-      model: 'SecuGen Hamster Pro 20',
-      serial: 'MOCK-SERIAL-123',
-      firmware: '1.0.0'
-    };
+    try {
+      const response = await fetch(`${this.baseURL}/info`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get device info');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        return {
+          model: data.device_name || 'SecuGen Device',
+          serial: 'N/A',
+          firmware: 'N/A',
+          width: data.width,
+          height: data.height,
+          status: data.status
+        };
+      } else {
+        throw new Error(data.message || 'Failed to get device info');
+      }
+    } catch (error) {
+      console.error('Failed to get device info:', error);
+      return {
+        model: 'Unknown',
+        serial: 'Unknown',
+        firmware: 'Unknown'
+      };
+    }
+  }
+
+  /**
+   * Match two fingerprint templates (1:1 verification)
+   * @param {string} template1 - Base64 encoded template
+   * @param {string} template2 - Base64 encoded template
+   * @returns {Promise<{matched: boolean, score: number}>}
+   */
+  async matchTemplates(template1, template2) {
+    try {
+      const response = await fetch(`${this.baseURL}/match`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          template1: template1,
+          template2: template2
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to match templates');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        return {
+          matched: data.matched || false,
+          score: data.score || 0
+        };
+      } else {
+        throw new Error(data.message || 'Template matching failed');
+      }
+    } catch (error) {
+      console.error('Template matching failed:', error);
+      return {
+        matched: false,
+        score: 0,
+        error: error.message
+      };
+    }
   }
 }
 
