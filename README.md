@@ -215,5 +215,5 @@ For issues and questions, please refer to the documentation in the `notes/` dire
 
 git upload
 ```cmd
-git add . && git commit -m "Updated" && git push ;
+git add . && git commit -m "Updated" && git push
 ```
