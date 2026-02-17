@@ -11,6 +11,11 @@ class Fingerprint(models.Model):
     class Meta:
         db_table = 'fingerprints'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user'], name='fingerprints_user_idx'),
+            models.Index(fields=['quality_score'], name='fingerprints_quality_idx'),
+            models.Index(fields=['-created_at'], name='fingerprints_created_idx'),
+        ]
 
     def __str__(self):
         return f"Fingerprint for {self.user.emp_id}"
