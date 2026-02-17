@@ -10,15 +10,32 @@ const VerifyFingerprint = () => {
   const [alert, setAlert] = useState(null);
   const [verificationResult, setVerificationResult] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyProgress, setVerifyProgress] = useState(0);
 
   const handleFingerprintCapture = async (data) => {
     setIsVerifying(true);
     setVerificationResult(null);
+    setAlert(null);
+    setVerifyProgress(0);
+
+    // Simulate progress while verifying
+    const progressInterval = setInterval(() => {
+      setVerifyProgress(prev => {
+        if (prev >= 90) return prev; // Stop at 90% until actual completion
+        return prev + 10;
+      });
+    }, 150); // Update every 150ms
 
     try {
       const response = await fingerprintAPI.verify({
         template_data: data.templateData
       });
+
+      clearInterval(progressInterval);
+      setVerifyProgress(100);
+      
+      // Brief pause to show 100% completion
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       if (response.data.matched) {
         setVerificationResult({
@@ -30,6 +47,8 @@ const VerifyFingerprint = () => {
         setVerificationResult({ matched: false });
       }
     } catch (error) {
+      clearInterval(progressInterval);
+      setVerifyProgress(0);
       setAlert({ 
         type: 'error', 
         message: 'Verification failed: ' + (error.response?.data?.message || error.message)
@@ -64,9 +83,32 @@ const VerifyFingerprint = () => {
               <p className="text-gray-600 mb-4">
                 Place your finger on the scanner to authenticate
               </p>
+              
+              {isVerifying && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-900">Matching fingerprint...</p>
+                      <p className="text-xs text-gray-600">Comparing against database</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-primary-600">{verifyProgress}%</p>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary-500 to-blue-500 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${verifyProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+              
               <FingerprintCapture 
                 onCapture={handleFingerprintCapture}
                 buttonText={isVerifying ? 'Verifying...' : 'Scan Fingerprint'}
+                disabled={isVerifying}
               />
             </div>
             <div className="bg-gradient-to-br from-blue-50 to-primary-50 rounded-xl p-6 border border-blue-100">

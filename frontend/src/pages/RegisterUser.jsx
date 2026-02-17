@@ -17,6 +17,8 @@ const RegisterUser = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
   const [qualityScore, setQualityScore] = useState(null);
+  const [isMatching, setIsMatching] = useState(false);
+  const [matchProgress, setMatchProgress] = useState(0);
 
   const handleInputChange = (e) => {
     setFormData({
@@ -25,12 +27,30 @@ const RegisterUser = () => {
     });
   };
 
-  const handleNextStep = (e) => {
+  const handleNextStep = async (e) => {
     e.preventDefault();
     if (!formData.emp_id || !formData.name) {
       setAlert({ type: 'error', message: 'Please fill in all fields' });
       return;
     }
+
+    // Check for duplicate employee ID before proceeding
+    setIsSubmitting(true);
+    try {
+      const response = await userAPI.search(formData.emp_id);
+      if (response.data && response.data.length > 0) {
+        setAlert({ 
+          type: 'error', 
+          message: `Employee ID "${formData.emp_id}" already exists. Please use a different ID.` 
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking duplicate:', error);
+    }
+    
+    setIsSubmitting(false);
     setStep(2);
     setAlert(null);
   };
@@ -48,6 +68,8 @@ const RegisterUser = () => {
     }
 
     setIsSubmitting(true);
+    setIsMatching(false);
+    setMatchProgress(0);
     setAlert(null);
     let createdUserId = null;
 
@@ -65,7 +87,31 @@ const RegisterUser = () => {
         throw new Error('user_id is missing from payload');
       }
       
-      await fingerprintAPI.capture(fingerprintPayload);
+      // Show matching progress with simulation
+      setIsMatching(true);
+      setMatchProgress(0);
+      
+      // Simulate progress while matching
+      const progressInterval = setInterval(() => {
+        setMatchProgress(prev => {
+          if (prev >= 90) return prev; // Stop at 90% until actual completion
+          return prev + 10;
+        });
+      }, 150); // Update every 150ms
+      
+      try {
+        await fingerprintAPI.capture(fingerprintPayload);
+        clearInterval(progressInterval);
+        setMatchProgress(100);
+        
+        // Brief pause to show 100% completion
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (error) {
+        clearInterval(progressInterval);
+        throw error;
+      }
+      
+      setIsMatching(false);
 
       setAlert({ type: 'success', message: 'User registered successfully!' });
       
@@ -73,6 +119,9 @@ const RegisterUser = () => {
         navigate('/users');
       }, 1500);
     } catch (error) {
+      setIsMatching(false);
+      setMatchProgress(0);
+      
       if (createdUserId && error.response?.config?.url?.includes('fingerprint')) {
         try {
           await userAPI.delete(createdUserId);
@@ -81,12 +130,38 @@ const RegisterUser = () => {
         }
       }
       
-      const errorMessage = error.response?.data?.details?.user_id?.[0] ||
-                          error.response?.data?.error ||
-                          error.response?.data?.message || 
-                          error.message ||
-                          'Failed to register user';
+      // Handle Django REST Framework validation errors
+      let errorMessage = 'Failed to register user';
+      
+      if (error.response?.data) {
+        const data = error.response.data;
+        
+        // Check for duplicate fingerprint error
+        if (data.message) {
+          errorMessage = data.message;
+        } else if (data.emp_id && Array.isArray(data.emp_id)) {
+          errorMessage = data.emp_id[0];
+        } else if (data.details?.user_id && Array.isArray(data.details.user_id)) {
+          errorMessage = data.details.user_id[0];
+        } else if (data.error) {
+          errorMessage = data.error;
+        } else if (typeof data === 'string') {
+          errorMessage = data;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setAlert({ type: 'error', message: errorMessage });
+      
+      // If duplicate user error, go back to step 1 to allow correction
+      if (errorMessage.toLowerCase().includes('already exists') || 
+          errorMessage.toLowerCase().includes('duplicate')) {
+        // If it's a duplicate fingerprint, stay on step 2 to recapture
+        if (!errorMessage.toLowerCase().includes('fingerprint')) {
+          setStep(1);
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -174,11 +249,17 @@ const RegisterUser = () => {
                 variant="secondary" 
                 onClick={() => navigate('/')}
                 className="flex-1 py-2"
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" className="flex-1 py-2">
-                Next Step
+              <Button 
+                type="submit" 
+                variant="primary" 
+                className="flex-1 py-2"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Checking...' : 'Next Step'}
               </Button>
             </div>
           </form>
@@ -201,9 +282,32 @@ const RegisterUser = () => {
                     </div>
                   </div>
                 </div>
+                
+                {isMatching && (
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-900">Checking for duplicates...</p>
+                        <p className="text-xs text-gray-600">Matching against existing fingerprints</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-primary-600">{matchProgress}%</p>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-primary-500 to-blue-500 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${matchProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+                
                 <FingerprintCapture 
                   onCapture={handleFingerprintCapture}
                   buttonText="Capture Fingerprint"
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="bg-gradient-to-br from-blue-50 to-primary-50 rounded-xl p-4 border border-blue-100">

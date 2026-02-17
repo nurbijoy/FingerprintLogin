@@ -56,6 +56,32 @@ class FingerprintViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Check for duplicate fingerprint
+        print("Checking for duplicate fingerprint...")
+        all_fingerprints = Fingerprint.objects.all()
+        total_fingerprints = all_fingerprints.count()
+        
+        if total_fingerprints > 0:
+            print(f"Comparing against {total_fingerprints} stored fingerprints...")
+        
+        match_result = FingerprintService.verify_fingerprint(template_bytes, all_fingerprints)
+        
+        if match_result['matched']:
+            existing_user = match_result['user']
+            print(f"Duplicate fingerprint detected! Matches user: {existing_user.emp_id}")
+            return Response(
+                {
+                    'error': 'Duplicate fingerprint detected',
+                    'message': f'This fingerprint is already registered to {existing_user.name} (ID: {existing_user.emp_id})',
+                    'existing_user': {
+                        'id': existing_user.id,
+                        'emp_id': existing_user.emp_id,
+                        'name': existing_user.name
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Create fingerprint record
         fingerprint = Fingerprint.objects.create(
             user=user,
